@@ -1,1 +1,3 @@
-# wangwuqiang.github.io
+# 注意事项
+
+有些文档图片不显示，直接下载文档查看
