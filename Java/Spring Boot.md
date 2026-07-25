@@ -10,7 +10,7 @@
 
 
 ## **<font style="color:rgb(51,51,51);">Spring Boot 的核心注解是哪个？它主要由哪几个注解组成的？</font>**
-Spring Boot 的核心注解是 **@SpringBootApplication**，通常标注在启动类上，它是一个组合注解，主要由三个注解组成：<u>@SpringBootConfiguration</u>、<u>@EnableAutoConfiguration</u> 和 <u>@ComponentScan</u>。
+Spring Boot 的核心注解是 **@SpringBootApplication**，通常标注在启动类上，它是一个组合注解，主要由三个注解组成：**@SpringBootConfiguration**、**@EnableAutoConfiguration **和 **@ComponentScan**。
 
 其中，@SpringBootConfiguration 本质上就是 @Configuration，用于声明配置类并向 Spring 容器注册 Bean；@ComponentScan 用于自动扫描启动类所在包及其子包中的组件，如 @Controller、@Service、@Repository 和 @Component；而 @EnableAutoConfiguration 是最核心的部分，它会根据项目依赖、配置文件以及运行环境，自动装配所需的 Bean，例如自动配置数据源、Spring MVC、内嵌 Tomcat 等，大大减少了手动配置工作。其底层通过导入大量自动配置类，并结合 @Conditional 条件注解按需生效，从而实现“约定大于配置”的开发模式
 
@@ -29,8 +29,16 @@ Spring Boot 会扫描所有自动配置类（如 *AutoConfiguration）。
 
 
 ## **<font style="color:rgb(51,51,51);">运行Spring Boot有哪几种方式？</font>**
-<!-- 这是一张图片，ocr 内容为： -->
-![](https://cdn.nlark.com/yuque/0/2026/png/70336156/1784506990716-a8a9d41d-b84f-47cb-a426-cfefcad09fd2.png)
+| 启动方式 | 命令 | 使用场景 |
+| --- | --- | --- |
+| IDE | 点击 Run | 开发阶段（最常用） |
+| Maven | `mvn spring-boot:run` | 本地开发、测试 |
+| Gradle | `gradlew bootRun` | Gradle 项目 |
+| Jar | `java -jar xxx.jar` | 生产环境（最常见） |
+| WAR | 部署到 Tomcat | 传统项目，较少使用 |
+| Docker | `docker run` | 容器化部署 |
+| Kubernetes | K8s Deployment | 云原生、大规模集群 |
+
 
 + **IDE 直接运行**，执行启动类中的 `main` 方法，这是开发阶段最常用的方式。
 + **Maven 启动**，通过 `mvn spring-boot:run` 运行项目。 
@@ -40,13 +48,6 @@ Spring Boot 会扫描所有自动配置类（如 *AutoConfiguration）。
 + **容器化部署**，将 Jar 打包到 Docker 镜像中运行，进一步可部署到 Kubernetes 集群，这是目前企业云原生环境中的主流方式
 
 
-
-## **<font style="color:rgb(51,51,51);">如何理解 Spring Boot 中的 Starters？</font>**
-Spring Boot 的 Starter 可以理解为一种**场景启动器**。它本质上是一组预先定义好的依赖集合，开发者只需要引入一个 Starter，就能自动引入完成某个功能所需的所有依赖，并结合 Spring Boot 的自动配置机制，实现开箱即用。
-
-例如，引入 `spring-boot-starter-web` 后，不仅会自动引入 Spring MVC、内嵌 Tomcat、Jackson 等相关依赖，还会自动配置 `DispatcherServlet`、消息转换器、静态资源映射等组件，开发者无需手动配置。
-
-因此，**Starter 主要负责依赖管理，而 Auto Configuration 负责根据条件自动创建和配置 Bean**。两者结合，大大简化了 Spring 项目的开发和配置工作。同时，Spring Boot 也支持开发者自定义 Starter，将企业内部公共功能封装起来，实现统一复用。
 
 
 
@@ -201,61 +202,33 @@ Spring Boot 默认不需要独立的 Servlet 容器运行，因为它采用了�
 
 
 ##  Spring Boot 是如何启动 Tomcat 的？  
-主程序入口 [ main() ]
+<!-- 这是一个文本绘图，源码为：flowchart TD
+    Main([主程序入口 main]) --> Run[1. 启动 Spring 引导程序<br>SpringApplication.run]
+    
+    Run --> InitContext[2. 初始化应用上下文<br>创建 ApplicationContext]
+    InitContext -.->|建立 Spring IOC 容器，准备加载 Bean| AutoConfig
+    
+    InitContext --> AutoConfig[3. 执行自动配置机制<br>自动配置 Auto-Configuration]
+    AutoConfig -.->|扫描类路径，触发 ServletWebServerFactoryAutoConfiguration| WebContext
+    
+    AutoConfig --> WebContext[4. 创建 Web 专用上下文<br>创建 ServletWebServerApplicationContext]
+    WebContext -.->|判定当前为 Web 应用，准备构建 Web 容器环境| Factory
+    
+    WebContext --> Factory[5. 寻找 Web 服务器工厂<br>获取 ServletWebServerFactory]
+    Factory -.->|从 IOC 容器中获取 TomcatServletWebServerFactory 实例| CreateTomcat
+    
+    Factory --> CreateTomcat[6. 实例化内嵌容器<br>创建 Tomcat]
+    CreateTomcat -.->|调用工厂方法，创建并配置原生 Tomcat 实例对象| StartTomcat
+    
+    CreateTomcat --> StartTomcat[7. 启动 Web 服务<br>Tomcat.start]
+    StartTomcat -.->|绑定网络端口 默认 8080，开始监听并接收 HTTP 请求| End([启动完成])
 
-   │
+    %% 样式美化
+    style Main fill:#f9f,stroke:#333,stroke-width:2px
+    style End fill:#bbf,stroke:#333,stroke-width:2px -->
+![](https://cdn.nlark.com/yuque/__mermaid_v3/56f0fbeaf7ffaabd243bb93951812cd9.svg)
 
-   ▼
 
-1. 启动 Spring 引导程序 [ SpringApplication.run() ]
-
-   │
-
-   ▼
-
-2. 初始化应用上下文 [ 创建 ApplicationContext ]
-
-   │  └─ 建立 Spring IOC 容器，准备加载 Bean
-
-   │
-
-   ▼
-
-3. 执行自动配置机制 [ 自动配置 (Auto-Configuration) ]
-
-   │  └─ 扫描类路径，触发 ServletWebServerFactoryAutoConfiguration
-
-   │
-
-   ▼
-
-4. 创建 Web 专用上下文 [ 创建 ServletWebServerApplicationContext ]
-
-   │  └─ 判定当前为 Web 应用，准备构建 Web 容器环境
-
-   │
-
-   ▼
-
-5. 寻找 Web 服务器工厂 [ 获取 ServletWebServerFactory ]
-
-   │  └─ 从 IOC 容器中获取 TomcatServletWebServerFactory 实例
-
-   │
-
-   ▼
-
-6. 实例化内嵌容器 [ 创建 Tomcat ]
-
-   │  └─ 调用工厂方法，创建并配置原生 Tomcat 实例对象
-
-   │
-
-   ▼
-
-7. 启动 Web 服务 [ Tomcat.start() ]
-
-      └─ 绑定网络端口（默认 8080），开始监听并接收 HTTP 请求
 
 
 
@@ -389,53 +362,86 @@ public class GlobalExceptionHandler {
 
 
 ### 异常处理流程
-Controller 执行业务代码
+ **业务角度**：Spring Boot 异常处理标准流程图  
 
-       │
+<!-- 这是一个文本绘图，源码为：flowchart TD
+    Req([1. 发送请求]) --> Controller[2. 执行业务逻辑]
+    Controller --> HasError{3. 是否抛出异常？}
+    
+    HasError -- 无异常 --> Success([返回正常结果])
+    
+    HasError -- 抛出异常 --> AdviseCheck{4. 是否定义<br/>全局异常处理器？}
 
-       ▼
+    %% 左右并行分支，压缩纵向高度
+    AdviseCheck -- 是 --> MatchHandler{5. 是否匹配<br/>@ExceptionHandler？}
+    AdviseCheck -- 否 --> FilterChain
 
- 抛出异常 (如 BusinessException)
+    MatchHandler -- 匹配成功 --> ExecHandler[6. 执行处理方法]
+    ExecHandler --> FormattedResp[7. 封装响应结果<br/>如 Result.fail]
+    FormattedResp --> RespToClient([8. 返回 JSON 结果])
 
-       │
+    %% 默认兜底分支
+    MatchHandler -- 匹配失败 --> FilterChain[9. 向上抛至<br/>Servlet 容器]
+    FilterChain --> BasicErrorController[10. 转发至默认<br/>BasicErrorController]
+    
+    BasicErrorController --> ReqType{11. 判断 Accept<br/>请求头类型}
+    ReqType -- HTML --> WhiteLabel[12. 渲染默认<br/>错误页面]
+    ReqType -- JSON --> DefaultJson[13. 返回默认<br/>JSON 结构]
+    
+    WhiteLabel --> RespToClient
+    DefaultJson --> RespToClient
 
-       ▼
+    %% 样式调整
+    style Req fill:#f9f,stroke:#333,stroke-width:2px
+    style RespToClient fill:#bbf,stroke:#333,stroke-width:2px
+    style HasError fill:#fbe,stroke:#333 -->
+![](https://cdn.nlark.com/yuque/__mermaid_v3/abe5ac8b5b1f9384b33448d4b07ae272.svg)
 
- 异常抛出至前端控制器 [ DispatcherServlet ]
 
-       │
 
-       ▼
+ **源码层级：**DispatcherServlet 内部异常处理机制（时序图）  
 
- 委派给异常解析器链 [ HandlerExceptionResolver ]
+<!-- 这是一个文本绘图，源码为：sequenceDiagram
+    autonumber
+    actor Client as 客户端
+    participant DS as DispatcherServlet
+    participant Controller as Controller 业务方法
+    participant CompositeResolver as HandlerExceptionResolverComposite
+    participant CustomResolver as ExceptionHandlerExceptionResolver
+    participant BasicController as BasicErrorController
 
-       │
+    Client->>DS: 1. 发起 HTTP 请求
+    DS->>Controller: 2. 通过 HandlerAdapter 调用目标方法
+    
+    rect rgb(255, 235, 235)
+        Controller-->>DS: 3. 业务代码抛出 Exception
+    end
 
-       └─► 匹配到核心解析器 [ ExceptionHandlerExceptionResolver ]
+    DS->>DS: 4. 捕获异常，调用 processHandlerException()
+    DS->>CompositeResolver: 5. 遍历 HandlerExceptionResolver 链
 
-                 │
+    rect rgb(235, 245, 255)
+        CompositeResolver->>CustomResolver: 6. 优先交给标注了 @ExceptionHandler 的解析器
+        alt 找到匹配的 @ExceptionHandler
+            CustomResolver->>CustomResolver: 7. 执行异常处理方法并序列化结果
+            CustomResolver-->>DS: 8. 返回已处理的 ModelAndView / ResponseBody
+            DS-->>Client: 9. 返回自定义错误 JSON/视图
+        else 未找到匹配的处理器
+            CustomResolver-->>CompositeResolver: 返回 null
+            CompositeResolver-->>DS: 最终无匹配的 Resolver 处理
+        end
+    end
 
-                 ▼
+    rect rgb(245, 245, 245)
+        DS-->>Client: 10. 抛出原始异常给 Servlet 容器
+        Client->>BasicController: 11. 容器重定向/转发到 /error
+        BasicController-->>Client: 12. 返回默认 Whitelabel 页面或默认 JSON
+    end -->
+![](https://cdn.nlark.com/yuque/__mermaid_v3/cfbd78056fb32819bb4e45b0d9d358ed.svg)
 
- 扫描全局增强组件 [ @RestControllerAdvice ]
 
-                 │
 
-                 ▼
 
- 精准匹配就近的异常处理方法 [ @ExceptionHandler ]
-
-                 │
-
-                 ▼
-
- 执行方法逻辑并转换为 HTTP 响应体 [ HttpMessageConverter ]
-
-                 │
-
-                 ▼
-
- 返回统一格式的 JSON 响应
 
 
 
@@ -500,6 +506,8 @@ RestartClassLoader
        │
 
        ├── 自己写的代码（重新加载）
+
+
 
 #### **Spring Boot DevTools 是如何实现热部署的？**
 DevTools 并不是真正意义上的热替换，它的实现方式是**自动重启应用**。它会监听项目中 Class 文件的变化，当检测到代码重新编译后，会自动关闭当前 ApplicationContext，再重新创建一个新的 ApplicationContext，从而让修改后的代码生效。
@@ -574,7 +582,7 @@ environment:
   SPRING_PROFILES_ACTIVE=prod
 ```
 
-###  除了 `application-dev.yml`，还能不能在一个 `application.yml` 中同时配置多个环境？  
+### 除了 `application-dev.yml`，还能不能在一个 `application.yml` 中同时配置多个环境？  
 可以。
 
 Spring Boot 支持在一个 `application.yml` 中使用 YAML 多文档语法，通过 `---` 分隔多个配置块，再结合 `spring.config.activate.on-profile` 指定对应的环境。例如可以在同一个文件中分别定义 `dev`、`test` 和 `prod` 的配置，启动时通过 `spring.profiles.active` 激活对应环境即可。  
