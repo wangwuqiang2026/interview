@@ -113,59 +113,7 @@ Spring Cloud 的工作流程一般是：
 
 整个流程体现了 Spring Cloud 对微服务通信、服务发现、负载均衡、网关和服务治理的支持。  
 
-<!-- 这是一个文本绘图，源码为：flowchart TD
 
-A[用户请求] --> B[Spring Cloud Gateway网关]
-
-B --> C{权限认证}
-C -->|通过| D[路由转发]
-C -->|失败| E[返回错误]
-
-D --> F[服务消费者 Consumer]
-
-F --> G[服务发现 Discovery]
-
-G --> H[注册中心 Nacos/Eureka]
-
-H --> I[获取服务实例列表]
-
-I --> J[Spring Cloud LoadBalancer负载均衡]
-
-J --> K[选择服务实例]
-
-K --> L[Feign远程调用]
-
-L --> M[服务提供者 Provider]
-
-M --> N[执行业务逻辑]
-
-N --> O[(数据库)]
-
-O --> N
-
-N --> P[返回结果]
-
-P --> L
-
-L --> F
-
-F --> B
-
-B --> A
-
-
-L -.调用失败.-> Q[Sentinel/Resilience4j熔断降级]
-
-Q --> R[返回降级结果]
-
-
-S[配置中心 Nacos Config] --> F
-S --> M
-
-
-M --> T[Seata事务协调]
-
-T --> U[多个微服务事务管理] -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/62d7c112775477d6a0eeb60ca59c0c00.svg)
 
 | 阶段 | 组件 | 作用 |
@@ -229,48 +177,6 @@ Spring Cloud Gateway 是 Spring Cloud 官方推出的 API 网关组件，用于�
 在微服务架构中，Spring Cloud Gateway 通常通过**过滤器**（Filter）实现权限认证。
 
 客户端请求首先经过 Gateway，Gateway 中的全局过滤器会拦截请求，从请求头中获取 Token（例如 JWT），然后验证 Token 的合法性，包括 Token 是否存在、是否过期、签名是否正确等。如果认证通过，Gateway 会解析 Token 中的用户信息（如用户 ID、角色、权限），然后将用户信息传递给后端微服务；如果认证失败，则直接返回 401 或 403，不再转发请求。Spring Cloud Gateway 本身支持通过 Filter 对请求进行前置处理，也可以使用 OAuth2 的 Token Relay 将认证 Token 转发给下游服务。  
-
-<!-- 这是一个文本绘图，源码为：flowchart TD
-
-A[客户端请求] --> B[Spring Cloud Gateway]
-
-B --> C[Gateway过滤器 GlobalFilter]
-
-C --> D{是否需要认证}
-
-D -->|否| E[直接路由转发]
-
-D -->|是| F[获取请求Header中的Token]
-
-F --> G{Token是否存在}
-
-G -->|不存在| H[返回401 未认证]
-
-G -->|存在| I[解析Token]
-
-I --> J[验证Token合法性]
-
-J --> K{Token是否有效}
-
-K -->|无效| L[返回401 Token失效]
-
-K -->|有效| M[获取用户信息]
-
-M --> N[添加用户信息到请求Header]
-
-N --> O[转发到业务服务]
-
-O --> P[微服务执行业务逻辑]
-
-P --> Q[返回结果]
-
-Q --> A
-
-
-%% Token校验
-I --> R[认证服务/Auth Service]
-
-R --> J -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/85d5693f8a61ff146aef003b812d4e49.svg)
 
 
@@ -329,75 +235,10 @@ Spring Cloud Gateway 是微服务体系中的 API 网关，主要负责微服务
 
 
 ### Gateway 的执行流程  
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    %% 节点定义
-    Client([1. 客户端 Client])
-    GatewayIn[2. Gateway 接收请求]
-    Mapping[3. Handler Mapping]
-    Predicate{4. Predicate 路由断言}
-    PreFilter[5. Pre Filter Chain 前置过滤器]
-    LB[6. LoadBalancer 负载均衡]
-    HttpClient[7. HTTP Client 转发]
-    MicroService[8. 微服务 Service Provider]
-    ServiceResp[9. 微服务返回响应]
-    PostFilter[10. Post Filter Chain 后置过滤器]
-    ClientEnd([11. 客户端接收响应])
-
-    %% 流程连接
-    Client -->|发送 HTTP 请求| GatewayIn
-    GatewayIn --> Mapping
-    Mapping -->|查找匹配 Route| Predicate
-    
-    Predicate -->|匹配成功| PreFilter
-    Predicate -->|匹配失败| ClientEnd
-
-    PreFilter -->|鉴权/限流/修改请求| LB
-    LB -->|服务发现与节点选择| HttpClient
-    HttpClient -->|转发请求| MicroService
-    
-    MicroService -->|执行业务并返回| ServiceResp
-    ServiceResp --> PostFilter
-    PostFilter -->|处理响应头/记录耗时| ClientEnd
-
-    %% 子图分组展现层次结构
-    subgraph Spring Cloud Gateway 核心流程
-        GatewayIn
-        Mapping
-        Predicate
-        PreFilter
-        LB
-        HttpClient
-        PostFilter
-    end -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/d3de0a8f4a745f9e4af0a50da296e18e.svg)
 
-<!-- 这是一个文本绘图，源码为：sequenceDiagram
-    autonumber
-    actor Client as 客户端
-    participant Gateway as Gateway 接收入口
-    participant Mapping as Handler Mapping
-    participant Predicate as Predicate 断言
-    participant Filter as Filter Chain 过滤器
-    participant LB as LoadBalancer
-    participant HttpClient as HTTP Client
-    participant Service as 目标微服务
 
-    Client->>Gateway: 1-2. 发送 HTTP 请求 (/order/create)
-    Gateway->>Mapping: 3. 查找匹配 Route
-    Mapping->>Predicate: 4. 判断规则 (Path/Method/Header)
-    
-    alt 匹配成功
-        Predicate->>Filter: 5. 执行前置过滤器 (认证/限流/日志)
-        Filter->>LB: 6. 选择服务实例 (Nacos/Eureka)
-        LB->>HttpClient: 获取具体实例 IP:Port
-        HttpClient->>Service: 7-8. 转发请求并执行业务逻辑
-        Service-->>HttpClient: 9. 返回处理结果
-        HttpClient-->>Filter: 传递响应
-        Filter->>Filter: 10. 执行后置过滤器 (耗时记录/修改 Header)
-        Filter-->>Client: 11. 返回最终结果
-    else 匹配失败
-        Predicate-->>Client: 返回 404 Not Found
-    end -->
+
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/c2c1d489793dc3073b2b2d48a6e5f5cf.svg)
 
 | 执行步骤 | 核心组件 | 执行动作 | 作用 |
@@ -962,33 +803,6 @@ RPC 可以基于 HTTP 实现，也可以基于 TCP、HTTP/2 等协议实现，�
 ## RPC 一次调用经过了哪些步骤？  
 业务调用 → 动态代理 → 服务发现 → 负载均衡 → 序列化 → 网络通信 → 反序列化 → 反射调用 → 执行业务 → 序列化返回 → 客户端反序列化 → 返回结果
 
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    subgraph 客户端 [Client / 消费者]
-        A[1. 业务调用] --> B[2. 动态代理]
-        B --> C[3. 服务发现]
-        C --> D[4. 负载均衡]
-        D --> E[5. 序列化]
-        E --> F[6. 网络通信 - 发送请求]
-        L[11. 客户端反序列化] --> M[12. 返回结果]
-    end
-
-    subgraph 注册中心 [Registry]
-        REG[(服务注册中心)]
-    end
-
-    subgraph 服务端 [Server / 提供者]
-        F --> G[6. 网络通信 - 接收请求]
-        G --> H[7. 反序列化]
-        H --> I[8. 反射调用]
-        I --> J[9. 执行业务]
-        J --> K[10. 序列化返回]
-    end
-
-    %% 服务发现过程交互
-    C -.-|查询可用节点| REG
-
-    %% 服务端响应网络回传
-    K -->|6. 网络通信 - 发送响应| L -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/3a01a67785f16129e2850787c1c787d1.svg)
 
 | RPC 调用流程 | 作用 |
@@ -1193,63 +1007,10 @@ RestTemplate 是 Spring 提供的 HTTP 客户端，用于主动发送 HTTP 请�
 
 
 ###  Seata 的执行流程是什么？  
-<!-- 这是一个文本绘图，源码为：flowchart TD
-
-    A[用户请求] --> B[服务A（TM）]
-
-    B --> C[开启全局事务]
-    
-    C --> D[TC事务协调器]
-    
-    D --> E[返回 XID]
-
-    E --> F[XID传播]
-
-    F --> G[服务B（RM）]
-    F --> H[服务C（RM）]
-
-    G --> G1[开启本地事务]
-    G1 --> G2[写业务表]
-    G2 --> G3[记录 undo_log]
-    G3 --> G4[注册分支事务]
-
-    H --> H1[开启本地事务]
-    H1 --> H2[写业务表]
-    H2 --> H3[记录 undo_log]
-    H3 --> H4[注册分支事务]
-
-    G4 --> I[TC收集结果]
-    H4 --> I
-
-    I --> J{事务执行结果}
-
-    J -->|全部成功| K[全局提交]
-    J -->|存在失败| L[全局回滚]
-
-    K --> M[RM提交事务]
-
-    L --> N[RM根据 undo_log 恢复数据] -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/1f78a43bc3284b5d9ae833a03a36419e.svg)
 
-<!-- 这是一个文本绘图，源码为：flowchart LR
 
-TM[TM<br/>事务发起者]
-TC[TC<br/>事务协调器]
-RM1[RM<br/>订单服务]
-RM2[RM<br/>库存服务]
 
-TM -->|开启全局事务| TC
-
-TC -->|返回XID| TM
-
-TM -->|携带XID调用| RM1
-TM -->|携带XID调用| RM2
-
-RM1 -->|注册分支事务| TC
-RM2 -->|注册分支事务| TC
-
-TC -->|成功| COMMIT[提交所有分支事务]
-TC -->|失败| ROLLBACK[根据undo_log回滚] -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/8451f31eac527d4b9064ef687f9d14e3.svg)
 
 
@@ -1281,31 +1042,6 @@ undo_log 就是用来记录 SQL 执行前后的数据快照。当业务 SQL 执�
 ### Seata AT模式和2PC有什么区别?
 2PC 流程：
 
-<!-- 这是一个文本绘图，源码为：sequenceDiagram
-    autonumber
-    participant C as 协调者 (Coordinator)
-    participant P1 as 参与者 1
-    participant P2 as 参与者 2
-
-    rect rgb(240, 248, 255)
-    note over C,P2: 第一阶段：准备阶段 (Prepare Phase)
-    C->>P1: 发送 Prepare 请求
-    C->>P2: 发送 Prepare 请求
-    P1->>P1: 执行本地事务 (写 Undo/Redo 日志，锁定资源)
-    P2->>P2: 执行本地事务 (写 Undo/Redo 日志，锁定资源)
-    P1-->>C: 响应 VOTE_COMMIT (同意)
-    P2-->>C: 响应 VOTE_COMMIT (同意)
-    end
-
-    rect rgb(240, 255, 240)
-    note over C,P2: 第二阶段：提交阶段 (Commit Phase)
-    C->>P1: 发送 Global Commit 请求
-    C->>P2: 发送 Global Commit 请求
-    P1->>P1: 正式提交事务，释放锁
-    P2->>P2: 正式提交事务，释放锁
-    P1-->>C: 响应 ACK
-    P2-->>C: 响应 ACK
-    end -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/9ecd1505cefed029bd13b90ef296c919.svg)
 
 2PC 是基于数据库原生事务的强一致方案，而 Seata AT 模式是在 2PC 思想基础上进行了优化，通过 undo_log 实现自动补偿，从而降低资源锁定时间，提高性能。
@@ -1324,5 +1060,4 @@ undo_log 就是用来记录 SQL 执行前后的数据快照。当业务 SQL 执�
 | **性能** | 较低 | 较高 |
 | **侵入性** | 需要数据库支持 | 业务代码基本无侵入 |
 | **适用场景** | 强一致场景 | 互联网业务场景 |
-
 
