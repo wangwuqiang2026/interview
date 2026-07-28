@@ -1,29 +1,4 @@
 ## Spring Bean的生命周期
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    A[1. 实例化 Instantiation<br>调用构造函数/工厂方法] --> B[2. 属性赋值 Populate Properties<br>依赖注入 @Autowired / Setter]
-    
-    B --> C{3. Aware 接口回调}
-    C -->|实现 BeanNameAware| C1[setBeanName]
-    C -->|实现 BeanFactoryAware| C2[setBeanFactory]
-    C -->|实现 ApplicationContextAware| C3[setApplicationContext]
-    
-    C1 --> D[4. BeanPostProcessor 前置处理<br>postProcessBeforeInitialization]
-    C2 --> D
-    C3 --> D
-    
-    D --> E{5. 初始化 Initialization}
-    E -->|标注 @PostConstruct| E1[执行 @PostConstruct 方法]
-    E1 -->|实现 InitializingBean| E2[执行 afterPropertiesSet]
-    E2 -->|配置 init-method| E3[执行自定义 init-method]
-    
-    E3 --> F[6. BeanPostProcessor 后置处理<br>postProcessAfterInitialization<br>在此阶段生成 AOP 动态代理]
-    
-    F --> G[7. Bean 就绪状态<br>可以被应用程序正常使用]
-    
-    G --> H{8. 销毁阶段 Destruction<br>容器关闭时触发}
-    H -->|标注 @PreDestroy| H1[执行 @PreDestroy 方法]
-    H1 -->|实现 DisposableBean| H2[执行 destroy 方法]
-    H2 -->|配置 destroy-method| H3[执行自定义 destroy-method] -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/0e24b6ff3c998ad54d4b9198a9f02b1a.svg)
 
 <!-- 这是一张图片，ocr 内容为： -->
@@ -181,14 +156,7 @@ public Object around(ProceedingJoinPoint point){
 | 异常通知 | @AfterThrowing | 异常发生后 | 异常日志 |
 | 环绕通知 | @Around | 方法执行前后 | 事务、性能监控 |
 
-
  **Spring AOP 本质**： 通过动态代理生成一个代理对象，在代理对象中加入增强逻辑。 
-
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    A[客户端调用] --> B[代理对象 Proxy]
-    B --> C[执行 AOP 增强逻辑]
-    C --> D[调用目标对象 Target]
-    D --> E[返回结果] -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/07ac16363eca8569e300699d731a0556.svg)
 
 <font style="color:rgb(51,51,51);"></font>
@@ -237,33 +205,8 @@ Spring 实现 IOC 主要依靠 依赖注入，常见方式有构造器注入、S
 
 <font style="color:rgb(51,51,51);">Spring 启动时会创建 IOC 容器，通过扫描配置文件或者注解获取 Bean 的定义信息，然后根据 BeanDefinition 创建和管理 Bean 对象。创建过程中，Spring 会通过反射实例化对象，并根据依赖关系完成属性注入，比如通过构造器注入、Setter 注入或者字段注入。为了管理 Bean 的生命周期，Spring 还提供了 BeanPostProcessor 等扩展机制，在 Bean 初始化前后执行相关处理。同时，Spring 通过三级缓存解决单例 Bean 的循环依赖问题。最终，应用程序不再主动创建对象，而是从 IOC 容器中获取已经创建好的 Bean，实现了对象创建和业务逻辑的解耦。  </font>
 
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    subgraph Phase1 [1. 容器启动与解析]
-        Start([Spring 启动]) --> CreateContainer[创建 IOC 容器]
-        CreateContainer --> Scan[扫描配置文件 / 注解]
-        Scan --> GetBD[获取 Bean 定义信息 BeanDefinition]
-    end
 
-    subgraph Phase2 [2. Bean 的创建与依赖注入]
-        GetBD --> ReflectInst[反射实例化对象]
-        ReflectInst --> CircularCheck{是否存在循环依赖?}
-        
-        CircularCheck -->|是| SolveCircular[通过三级缓存解决循环依赖]
-        CircularCheck -->|否| Inject[进行依赖注入<br>构造器/Setter/字段注入]
-        SolveCircular --> Inject
-    end
 
-    subgraph Phase3 [3. Bean 生命周期管理]
-        Inject --> BPPBefore[BeanPostProcessor 前置处理]
-        BPPBefore --> Init[执行 Bean 初始化逻辑]
-        Init --> BPPAfter[BeanPostProcessor 后置处理]
-    end
-
-    subgraph Phase4 [4. 应用解耦使用]
-        BPPAfter --> Ready[Bean 交付容器管理]
-        Ready --> AppFetch[应用程序从 IOC 容器获取 Bean]
-        AppFetch --> End([实现对象创建与业务逻辑解耦])
-    end -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/de90e7773079419d51a0ed9a3f67fcd9.svg)
 
 
@@ -386,30 +329,6 @@ Spring 默认会根据目标对象是否实现接口来选择代理方式：实�
 <font style="color:#000000;"></font>
 
 ## **<font style="color:rgb(51,51,51);">Spring 是怎么解决循环依赖的？</font>**
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    Start([开始创建 Bean A]) --> A_Inst[1. 实例化 A]
-    A_Inst --> A_3rd[2. A 的 ObjectFactory 存入三级缓存]
-    A_3rd --> A_Pop[3. A 注入属性，发现依赖 B]
-    
-    A_Pop --> B_Inst[4. 实例化 B]
-    B_Inst --> B_3rd[5. B 的 ObjectFactory 存入三级缓存]
-    B_3rd --> B_Pop[6. B 注入属性，发现依赖 A]
-    
-    B_Pop --> Get_A_3rd[7. 从三级缓存获取 A 的 ObjectFactory]
-    Get_A_3rd --> AOP{需要 AOP 代理?}
-    
-    AOP -->|是| Proxy[返回 A 的代理对象]
-    AOP -->|否| Raw[返回 A 的原始半成品]
-    
-    Proxy --> A_2nd[8. A 的引用存入二级缓存，移出三级缓存]
-    Raw --> A_2nd
-    
-    A_2nd --> B_Inject[9. B 注入 A 的引用，完成初始化]
-    B_Inject --> B_1st[10. B 存入一级缓存，移出二/三级缓存]
-    
-    B_1st --> A_Inject[11. A 获取完整的 B，完成依赖注入与初始化]
-    A_Inject --> A_1st[12. A 存入一级缓存，移出二/三级缓存]
-    A_1st --> End([完成]) -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/bd687930881999730e24560f97a2c485.svg)
 
 <font style="color:#000000;">Spring 主要通过</font>**<font style="color:#000000;">三级缓存</font>**<font style="color:#000000;">解决单例 Bean 的 Setter 注入或字段注入导致的循环依赖。</font>
