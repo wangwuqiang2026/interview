@@ -73,15 +73,15 @@ public class MyCommandLineRunner implements CommandLineRunner {
 **启动顺序**：Spring容器初始化
 
                              ↓
-
+    
                 所有Bean创建完成
-
+    
                               ↓
-
+    
                ApplicationContext刷新完成
-
+    
                              ↓
-
+    
                CommandLineRunner.run()
 
 ### 方式二：实现 ApplicationRunner  
@@ -202,30 +202,7 @@ Spring Boot 默认不需要独立的 Servlet 容器运行，因为它采用了�
 
 
 ##  Spring Boot 是如何启动 Tomcat 的？  
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    Main([主程序入口 main]) --> Run[1. 启动 Spring 引导程序<br>SpringApplication.run]
     
-    Run --> InitContext[2. 初始化应用上下文<br>创建 ApplicationContext]
-    InitContext -.->|建立 Spring IOC 容器，准备加载 Bean| AutoConfig
-    
-    InitContext --> AutoConfig[3. 执行自动配置机制<br>自动配置 Auto-Configuration]
-    AutoConfig -.->|扫描类路径，触发 ServletWebServerFactoryAutoConfiguration| WebContext
-    
-    AutoConfig --> WebContext[4. 创建 Web 专用上下文<br>创建 ServletWebServerApplicationContext]
-    WebContext -.->|判定当前为 Web 应用，准备构建 Web 容器环境| Factory
-    
-    WebContext --> Factory[5. 寻找 Web 服务器工厂<br>获取 ServletWebServerFactory]
-    Factory -.->|从 IOC 容器中获取 TomcatServletWebServerFactory 实例| CreateTomcat
-    
-    Factory --> CreateTomcat[6. 实例化内嵌容器<br>创建 Tomcat]
-    CreateTomcat -.->|调用工厂方法，创建并配置原生 Tomcat 实例对象| StartTomcat
-    
-    CreateTomcat --> StartTomcat[7. 启动 Web 服务<br>Tomcat.start]
-    StartTomcat -.->|绑定网络端口 默认 8080，开始监听并接收 HTTP 请求| End([启动完成])
-
-    %% 样式美化
-    style Main fill:#f9f,stroke:#333,stroke-width:2px
-    style End fill:#bbf,stroke:#333,stroke-width:2px -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/56f0fbeaf7ffaabd243bb93951812cd9.svg)
 
 
@@ -263,17 +240,17 @@ JAR（Java Archive） 是 Java 程序最常见的打包格式，本质上就是�
  里面主要包括：  
 
                       WEB-INF/
-
+    
                                classes/
-
+    
                                lib/
-
+    
                       index.jsp
-
+    
                        html
-
+    
                        css
-
+    
                        js
 
 
@@ -364,79 +341,12 @@ public class GlobalExceptionHandler {
 ### 异常处理流程
  **业务角度**：Spring Boot 异常处理标准流程图  
 
-<!-- 这是一个文本绘图，源码为：flowchart TD
-    Req([1. 发送请求]) --> Controller[2. 执行业务逻辑]
-    Controller --> HasError{3. 是否抛出异常？}
-    
-    HasError -- 无异常 --> Success([返回正常结果])
-    
-    HasError -- 抛出异常 --> AdviseCheck{4. 是否定义<br/>全局异常处理器？}
-
-    %% 左右并行分支，压缩纵向高度
-    AdviseCheck -- 是 --> MatchHandler{5. 是否匹配<br/>@ExceptionHandler？}
-    AdviseCheck -- 否 --> FilterChain
-
-    MatchHandler -- 匹配成功 --> ExecHandler[6. 执行处理方法]
-    ExecHandler --> FormattedResp[7. 封装响应结果<br/>如 Result.fail]
-    FormattedResp --> RespToClient([8. 返回 JSON 结果])
-
-    %% 默认兜底分支
-    MatchHandler -- 匹配失败 --> FilterChain[9. 向上抛至<br/>Servlet 容器]
-    FilterChain --> BasicErrorController[10. 转发至默认<br/>BasicErrorController]
-    
-    BasicErrorController --> ReqType{11. 判断 Accept<br/>请求头类型}
-    ReqType -- HTML --> WhiteLabel[12. 渲染默认<br/>错误页面]
-    ReqType -- JSON --> DefaultJson[13. 返回默认<br/>JSON 结构]
-    
-    WhiteLabel --> RespToClient
-    DefaultJson --> RespToClient
-
-    %% 样式调整
-    style Req fill:#f9f,stroke:#333,stroke-width:2px
-    style RespToClient fill:#bbf,stroke:#333,stroke-width:2px
-    style HasError fill:#fbe,stroke:#333 -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/abe5ac8b5b1f9384b33448d4b07ae272.svg)
 
 
 
  **源码层级：**DispatcherServlet 内部异常处理机制（时序图）  
 
-<!-- 这是一个文本绘图，源码为：sequenceDiagram
-    autonumber
-    actor Client as 客户端
-    participant DS as DispatcherServlet
-    participant Controller as Controller 业务方法
-    participant CompositeResolver as HandlerExceptionResolverComposite
-    participant CustomResolver as ExceptionHandlerExceptionResolver
-    participant BasicController as BasicErrorController
-
-    Client->>DS: 1. 发起 HTTP 请求
-    DS->>Controller: 2. 通过 HandlerAdapter 调用目标方法
-    
-    rect rgb(255, 235, 235)
-        Controller-->>DS: 3. 业务代码抛出 Exception
-    end
-
-    DS->>DS: 4. 捕获异常，调用 processHandlerException()
-    DS->>CompositeResolver: 5. 遍历 HandlerExceptionResolver 链
-
-    rect rgb(235, 245, 255)
-        CompositeResolver->>CustomResolver: 6. 优先交给标注了 @ExceptionHandler 的解析器
-        alt 找到匹配的 @ExceptionHandler
-            CustomResolver->>CustomResolver: 7. 执行异常处理方法并序列化结果
-            CustomResolver-->>DS: 8. 返回已处理的 ModelAndView / ResponseBody
-            DS-->>Client: 9. 返回自定义错误 JSON/视图
-        else 未找到匹配的处理器
-            CustomResolver-->>CompositeResolver: 返回 null
-            CompositeResolver-->>DS: 最终无匹配的 Resolver 处理
-        end
-    end
-
-    rect rgb(245, 245, 245)
-        DS-->>Client: 10. 抛出原始异常给 Servlet 容器
-        Client->>BasicController: 11. 容器重定向/转发到 /error
-        BasicController-->>Client: 12. 返回默认 Whitelabel 页面或默认 JSON
-    end -->
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/cfbd78056fb32819bb4e45b0d9d358ed.svg)
 
 
@@ -496,15 +406,15 @@ IDEA设置中开启Build Project Automatically、 compiler.automake.allow.when.a
 BaseClassLoader
 
        │
-
+    
        ├── 第三方Jar（不会重新加载）
-
+    
        │
 
 RestartClassLoader
 
        │
-
+    
        ├── 自己写的代码（重新加载）
 
 
