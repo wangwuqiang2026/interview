@@ -142,6 +142,184 @@ Nginx 和 Tomcat 最大的区别在于它们的定位不同。**Nginx 是一个�
 
 
 
+## 完整 server 配置
+```nginx
+server {
+
+    # 监听端口
+    listen 80;
+
+    # 域名
+    server_name www.example.com;
+
+
+    # =========================
+    # 1. 日志配置
+    # =========================
+
+    access_log /var/log/nginx/example.access.log;
+
+    error_log /var/log/nginx/example.error.log;
+
+
+    # =========================
+    # 2. 静态资源处理
+    # =========================
+
+    location /static/ {
+
+        root /usr/share/nginx/html;
+
+        expires 7d;
+
+        add_header Cache-Control "public";
+    }
+
+
+    # =========================
+    # 3. 前端页面
+    # =========================
+
+    location / {
+
+        root /usr/share/nginx/html;
+
+        index index.html;
+
+        # 前端Vue/React路由刷新处理
+        try_files $uri $uri/ /index.html;
+
+    }
+
+
+    # =========================
+    # 4. 后端接口代理
+    # =========================
+
+    location /api/ {
+
+
+        # 转发到 upstream
+        proxy_pass http://backend;
+
+
+        # 设置请求头
+        proxy_set_header Host $host;
+
+        proxy_set_header X-Real-IP $remote_addr;
+
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+
+        # 超时时间
+
+        proxy_connect_timeout 5s;
+
+        proxy_read_timeout 60s;
+
+        proxy_send_timeout 60s;
+
+    }
+
+
+    # =========================
+    # 5. WebSocket代理
+    # =========================
+
+    location /ws/ {
+
+
+        proxy_pass http://backend;
+
+
+        proxy_http_version 1.1;
+
+
+        proxy_set_header Upgrade $http_upgrade;
+
+        proxy_set_header Connection "upgrade";
+
+    }
+
+
+    # =========================
+    # 6. 限流
+    # =========================
+
+    location /api/login {
+
+
+        limit_req zone=login_limit burst=5 nodelay;
+
+
+        proxy_pass http://backend;
+
+    }
+
+
+    # =========================
+    # 7. 禁止访问敏感文件
+    # =========================
+
+    location ~ /\. {
+
+        deny all;
+
+    }
+
+
+    # =========================
+    # 8. 错误页面
+    # =========================
+
+    error_page 404 /404.html;
+
+    error_page 500 502 503 504 /50x.html;
+}
+```
+
+
+
+ 对应 upstream 配置  
+
+```nginx
+http {
+
+    upstream backend {
+
+        # 默认轮询
+
+        server 192.168.1.101:8080;
+
+
+        server 192.168.1.102:8080;
+
+
+    }
+
+
+    server {
+
+        listen 80;
+
+        server_name www.example.com;
+
+    
+        location /api/ {
+
+            proxy_pass http://backend;
+
+        }
+
+    }
+
+}
+```
+
+
+
+
+
 ## location 匹配规则是什么？  
 Nginx 的 `location` 用于匹配客户端请求的 URI，并根据匹配结果选择对应的配置块处理请求。Nginx 的 location 匹配规则主要包括**精确匹配、前缀匹配、正则匹配**三种，其中精确匹配优先级最高，正则匹配次之，普通前缀匹配优先级最低。匹配时，Nginx 会先查找最长的前缀匹配，然后判断是否存在正则匹配，如果匹配成功则使用对应的 location；如果最长前缀匹配使用了 `^~` 修饰符，则会跳过正则匹配。简单来说，Nginx 会按照“精确匹配 > ^~前缀匹配 > 正则匹配 > 普通前缀匹配”的规则选择最终处理请求的 location。  
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/2951a32a257f188095bfaa82f5c29ea0.svg)
@@ -152,6 +330,8 @@ Nginx 的 `location` 用于匹配客户端请求的 URI，并根据匹配结果�
 
 ## Nginx 反向代理的执行流程是什么？
 Nginx 反向代理的执行流程主要包括**接收客户端请求、匹配代理规则、转发请求到后端服务器、后端处理请求、Nginx 返回响应给客户端**这几个步骤。首先，客户端将请求发送给 Nginx，由 Nginx 作为统一入口接收请求；然后 Nginx 根据配置文件中的 `location` 规则匹配请求路径，判断是否需要进行反向代理；如果需要代理，Nginx 会根据 upstream 配置选择一台后端服务器，并将请求转发过去；后端服务器处理业务逻辑后返回响应结果；最后 Nginx 接收到后端响应，再将结果返回给客户端。整个过程中，客户端只知道 Nginx 的地址，并不知道真实的后端服务器地址，因此实现了隐藏后端服务、负载均衡和提高系统安全性的作用  
+
+
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/ad1d59546790b44064bb3d3b3be21f3b.svg)
 
 
@@ -193,6 +373,7 @@ Nginx 和 Gateway 都可以作为系统入口，实现请求转发和负载均�
 
 ## Nginx是如何处理一个HTTP请求的呢？
 Nginx 处理一个 HTTP 请求的过程主要包括 **建立连接、接收请求、解析请求、处理请求、返回响应** 这几个阶段。首先，客户端向 Nginx 发送 HTTP 请求，Nginx 的 Master 进程负责管理 Worker 进程，真正处理请求的是 Worker 进程。Worker 通过 **事件驱动模型和 I/O 多路复用机制** 监听客户端连接，当有新的连接到来时，Worker 接收 TCP 连接并读取 HTTP 请求报文。然后，Nginx 会解析请求中的请求方法、URL、请求头等信息，根据配置文件中的 location 规则匹配对应的处理逻辑。如果请求的是**静态资源**，Nginx 会直接从文件系统读取并返回；如果是**动态请求**，则通过反向代理转发给后端服务器，例如 Tomcat、Spring Boot 服务等。后端处理完成后，将响应结果返回给 Nginx，Nginx 再将响应数据发送给客户端，最后关闭连接或者保持长连接等待后续请求。整个过程中，Nginx 通过事件驱动、非阻塞 I/O 和多进程模型，可以同时处理大量并发请求。  
+    
 
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/32289e60d95f931e1931a5b3ae2a2154.svg)
 
@@ -203,7 +384,7 @@ Nginx 处理一个 HTTP 请求的过程主要包括 **建立连接、接收请�
 ## **<font style="color:rgb(51,51,51);">在Nginx中，如何使用未定义的服务器名称来阻止处理请求？</font>**
 在 Nginx 中，可以通过配置一个 默认 Server 块（default server），并使用一个未定义的服务器名称来阻止处理未知域名的请求。通常做法是将这个 Server 设置为默认虚拟主机，并返回 444 状态码或者直接拒绝连接。例如，可以配置 listen 80 default_server，然后设置一个不存在的 server_name，当客户端请求的 Host 不匹配任何已配置域名时，就会进入这个默认 Server，从而拒绝请求。这样可以防止恶意请求通过未知域名访问服务器，提高安全性。
 
-```xml
+```nginx
 server {
     listen 80 default_server;
     server_name _;
@@ -291,6 +472,8 @@ Nginx 实现优雅关闭主要依靠 **Worker 进程的平滑退出机制**。�
 
 ## Nginx 中如何限制请求频率？
 Nginx 限制请求频率主要通过 **限流模块** 实现，常用的是 `ngx_http_limit_req_module`，它基于**漏桶算法**控制客户端请求速率。通过 `limit_req_zone` 定义限流规则，例如按照客户端 IP 记录请求频率，再通过 `limit_req` 应用到具体接口。当请求超过限制时，Nginx 可以选择排队等待处理或者直接返回错误码，例如 429 或 503，从而防止恶意请求、接口被刷以及后端服务压力过大。除了基于 IP 限流，还可以根据用户 ID、接口路径等维度进行限流。  
+
+
 
 
 
