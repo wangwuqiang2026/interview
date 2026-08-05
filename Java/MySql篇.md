@@ -600,6 +600,7 @@ MySQL SQL 优化主要从 SQL 本身、索引设计、表结构设计以及数�
 在分析 `EXPLAIN` 时，主要关注几个关键字段：首先看 **type**，它表示 MySQL 的访问类型，通常从好到差依次是 `system、const、eq_ref、ref、range、index、ALL`，其中 `ALL` 表示全表扫描，需要重点优化。其次看 **key**，表示实际使用的索引，如果为空说明没有使用索引。然后看 **rows**，表示 MySQL 预计需要扫描的数据行数，这个值越小越好。还需要关注 **Extra** 字段，例如出现 `Using filesort` 表示需要额外排序，`Using temporary` 表示使用临时表，这些通常需要优化。
 
 实际优化 SQL 时，一般先通过 `EXPLAIN` 判断 SQL 是否走索引，再结合 `type`、`key`、`rows`、`Extra` 等字段分析问题，例如是否存在全表扫描、索引失效、排序或临时表等情况，然后针对性优化索引或者 SQL。
+
 ![](https://cdn.nlark.com/yuque/__mermaid_v3/ea7fcad0ad2eb6d660f2472a28bbd9cb.svg)
 
 
